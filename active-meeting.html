@@ -302,6 +302,9 @@
         let charlaTimeUsed = 0;
         let charlaTimeRemaining = meetingData.charlaMinutes * 60;
         
+        // Store allocated times for each participant (only updates when no one is speaking)
+        let allocatedTimes = {};
+        
         // Calculate meeting start and end dates in UTC-3
         function calculateMeetingDates() {
             const [startHour, startMin] = meetingData.startTime.split(':').map(Number);
@@ -347,7 +350,6 @@
             
             let elapsed = 0;
             if (hasStarted) {
-                // Calculate elapsed time in minutes
                 elapsed = (now - startDate) / 1000 / 60;
             }
             
@@ -362,58 +364,71 @@
             return `${mins}:${secs.toString().padStart(2, '0')}`;
         }
 
-        function getTimePerPerson() {
+        function calculateAllocatedTimes() {
             const { remaining } = calculateTimeStats();
-            
-            // Calculate remaining time in seconds
             const remainingTimeSeconds = remaining * 60;
             
-            // Calculate total time used by all participants who already spoke
+            // Calculate total time already used by participants who finished speaking
             let totalTimeUsed = 0;
-            
-            // Add time used by participants who already finished speaking
             talkedParticipants.forEach(person => {
                 totalTimeUsed += person.timeSpoken;
             });
             
-            // Add time for current speaker if speaking
-            if (currentSpeaker && currentSpeakerStartTime) {
-                const now = new Date();
-                const currentTimeUsed = (now - currentSpeakerStartTime) / 1000;
-                totalTimeUsed += currentTimeUsed;
-            }
-            
-            // Available time for remaining participants
+            // Available time for all remaining participants
             const availableTime = remainingTimeSeconds - totalTimeUsed;
             const activeCount = names.length;
             
-            // Calculate time per person based on remaining available time
+            // Time per person (only calculate when no one is speaking)
             const timePerPerson = activeCount > 0 ? availableTime / activeCount : 0;
             
             return Math.max(0, timePerPerson);
         }
 
-        function updateCurrentSpeakerTimer() {
-            if (!currentSpeaker || !currentSpeakerStartTime) return;
-            
-            const timePerPerson = getTimePerPerson();
-            const elapsed = (Date.now() - currentSpeakerStartTime) / 1000;
-            const remaining = Math.max(0, timePerPerson - elapsed);
-            
-            const element = document.querySelector(`[data-name="${currentSpeaker}"] .timer`);
-            if (element) {
-                element.textContent = formatTime(remaining);
+        function getTimeForParticipant(name) {
+            // If someone is speaking, return their allocated time (which counts down)
+            if (currentSpeaker === name) {
+                // Get their original allocated time
+                const allocatedTime = allocatedTimes[name] || 0;
                 
-                if (remaining < 10) {
-                    element.classList.add('active');
-                } else {
-                    element.classList.remove('active');
+                // Calculate how much time has passed since they started
+                if (currentSpeakerStartTime) {
+                    const elapsed = (Date.now() - currentSpeakerStartTime) / 1000;
+                    return Math.max(0, allocatedTime - elapsed);
                 }
+                return allocatedTime;
+            }
+            
+            // If no one is speaking or this person is not speaking, return their current allocated time
+            return allocatedTimes[name] || 0;
+        }
+
+        function updateAllocatedTimes() {
+            const timePerPerson = calculateAllocatedTimes();
+            
+            // Only update allocated times when no one is speaking
+            if (!currentSpeaker) {
+                // Store the allocated time for each participant
+                names.forEach(name => {
+                    if (!talkedParticipants.find(p => p.name === name)) {
+                        allocatedTimes[name] = timePerPerson;
+                    }
+                });
+            } else {
+                // When someone is speaking, keep everyone else's time the same
+                // Only update the speaking person's countdown
             }
         }
 
         function startSpeaking(name) {
             if (currentSpeaker === name) return;
+            
+            // Calculate and update allocated times before starting to speak
+            updateAllocatedTimes();
+            
+            // If they don't have an allocated time yet, give them the current allocation
+            if (!allocatedTimes[name]) {
+                allocatedTimes[name] = calculateAllocatedTimes();
+            }
             
             currentSpeaker = name;
             currentSpeakerStartTime = Date.now();
@@ -429,7 +444,6 @@
             
             let timeSpoken = 0;
             if (currentSpeaker === name && currentSpeakerStartTime) {
-                // Calculate how long they spoke
                 timeSpoken = (Date.now() - currentSpeakerStartTime) / 1000;
                 currentSpeaker = null;
                 currentSpeakerStartTime = null;
@@ -439,6 +453,9 @@
                 name: name,
                 timeSpoken: timeSpoken
             });
+            
+            // Remove from allocated times
+            delete allocatedTimes[name];
             
             render();
         }
@@ -461,13 +478,9 @@
         function updateCountdowns() {
             const { elapsed, remaining } = calculateTimeStats();
             
-            // Update elapsed time (counting up)
             document.getElementById('elapsedTime').textContent = formatTime(elapsed * 60);
-            
-            // Update remaining time (counting down)
             document.getElementById('remainingTime').textContent = formatTime(remaining * 60);
             
-            // Update charla notice
             updateCharlaNotice();
         }
 
@@ -481,32 +494,29 @@
             
             remainingCount.textContent = names.length;
             
+            // Update allocated times when no one is speaking
+            if (!currentSpeaker) {
+                updateAllocatedTimes();
+            }
+            
             if (names.length === 0) {
                 activeDiv.innerHTML = '<div class="empty-state">¡Todos los participantes han hablado!</div>';
             } else {
-                const timePerPerson = getTimePerPerson();
-                
                 names.forEach(name => {
                     const item = document.createElement('div');
                     item.className = 'participant-item' + (currentSpeaker === name ? ' active' : '');
                     item.setAttribute('data-name', name);
                     
-                    let timerValue;
-                    if (currentSpeaker === name && currentSpeakerStartTime) {
-                        const elapsed = (Date.now() - currentSpeakerStartTime) / 1000;
-                        const remaining = Math.max(0, timePerPerson - elapsed);
-                        timerValue = formatTime(remaining);
-                    } else {
-                        timerValue = formatTime(timePerPerson);
-                    }
+                    const timerValue = formatTime(getTimeForParticipant(name));
+                    const allocatedTime = formatTime(allocatedTimes[name] || 0);
                     
                     item.innerHTML = `
                         <div class="participant-info">
                             <div class="participant-name">${name}</div>
-                            <div class="participant-time">Asignado: ${formatTime(timePerPerson)}</div>
+                            <div class="participant-time">Asignado: ${allocatedTime}</div>
                         </div>
                         <div class="participant-actions">
-                            <div class="timer ${currentSpeaker === name ? 'active' : ''}">${timerValue}</div>
+                            <div class="timer ${currentSpeaker === name && getTimeForParticipant(name) < 10 ? 'active' : ''}">${timerValue}</div>
                             <button class="btn-talk" onclick="startSpeaking('${name}')">Empezar</button>
                             <button class="btn-complete" onclick="markAsTalked('${name}')">Ya Habló</button>
                         </div>
@@ -535,16 +545,15 @@
             updateCurrentTime();
             updateCountdowns();
             
-            if (currentSpeaker) {
-                updateCurrentSpeakerTimer();
-            }
-            
-            // Re-render to update time allocations dynamically
+            // Re-render to update everything dynamically
             render();
         }
 
         window.startSpeaking = startSpeaking;
         window.markAsTalked = markAsTalked;
+
+        // Initialize allocated times
+        updateAllocatedTimes();
 
         // Update every second
         setInterval(updateDisplays, 1000);
