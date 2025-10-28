@@ -301,7 +301,31 @@
         let currentSpeakerStartTime = null;
         let charlaTimeUsed = 0;
         let charlaTimeRemaining = meetingData.charlaMinutes * 60;
-        let timeUsedBySpeakers = 0; // Track time used by speakers
+        
+        // Calculate meeting start and end dates in UTC-3
+        function calculateMeetingDates() {
+            const [startHour, startMin] = meetingData.startTime.split(':').map(Number);
+            const [endHour, endMin] = meetingData.endTime.split(':').map(Number);
+            
+            // Get current UTC-3 time
+            const now = new Date();
+            const utc3Time = new Date(now.getTime() - (3 * 60 * 60 * 1000));
+            
+            // Create meeting start date (today at the specified time in UTC-3)
+            const startDate = new Date(utc3Time);
+            startDate.setHours(startHour, startMin, 0, 0);
+            
+            // Create meeting end date (today at the specified time in UTC-3)
+            const endDate = new Date(utc3Time);
+            endDate.setHours(endHour, endMin, 0, 0);
+            
+            // If meeting hasn't started yet, show 0 elapsed
+            if (now < startDate) {
+                return { startDate, endDate, hasStarted: false };
+            }
+            
+            return { startDate, endDate, hasStarted: true };
+        }
 
         function getUTCTime() {
             const now = new Date();
@@ -311,33 +335,25 @@
 
         function updateCurrentTime() {
             const utc3Time = getUTCTime();
-            const timeStr = utc3Time.toLocaleTimeString('en-US', { hour12: false });
+            const timeStr = utc3Time.toLocaleTimeString('es-AR', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
             document.getElementById('currentTime').textContent = timeStr;
         }
 
-        function getMeetingTimes() {
-            const [startHour, startMin] = meetingData.startTime.split(':').map(Number);
-            const [endHour, endMin] = meetingData.endTime.split(':').map(Number);
-            
-            const today = getUTCTime();
-            const startDate = new Date(today);
-            startDate.setUTCHours(startHour + 3, startMin, 0, 0);
-            
-            const endDate = new Date(today);
-            endDate.setUTCHours(endHour + 3, endMin, 0, 0);
-            
-            return { startDate, endDate };
-        }
-
         function calculateTimeStats() {
-            const { startDate, endDate } = getMeetingTimes();
-            const now = getUTCTime();
+            const { startDate, endDate, hasStarted } = calculateMeetingDates();
+            const now = new Date();
             
             const totalDuration = (endDate - startDate) / 1000 / 60;
-            const elapsed = Math.max(0, (now - startDate) / 1000 / 60);
+            
+            let elapsed = 0;
+            if (hasStarted) {
+                // Calculate elapsed time in minutes
+                elapsed = (now - startDate) / 1000 / 60;
+            }
+            
             const remaining = Math.max(0, totalDuration - elapsed);
             
-            return { elapsed, remaining, totalDuration, now };
+            return { elapsed, remaining, totalDuration };
         }
 
         function formatTime(seconds) {
@@ -347,38 +363,41 @@
         }
 
         function getTimePerPerson() {
-            const { remaining, now } = calculateTimeStats();
+            const { remaining } = calculateTimeStats();
             
             // Calculate remaining time in seconds
-            const remainingTime = remaining * 60;
+            const remainingTimeSeconds = remaining * 60;
             
-            // Calculate time used so far
-            let timeUsed = 0;
+            // Calculate total time used by all participants who already spoke
+            let totalTimeUsed = 0;
+            
+            // Add time used by participants who already finished speaking
+            talkedParticipants.forEach(person => {
+                totalTimeUsed += person.timeSpoken;
+            });
             
             // Add time for current speaker if speaking
             if (currentSpeaker && currentSpeakerStartTime) {
+                const now = new Date();
                 const currentTimeUsed = (now - currentSpeakerStartTime) / 1000;
-                timeUsed += currentTimeUsed;
+                totalTimeUsed += currentTimeUsed;
             }
             
-            // Add time already used by participants who finished
-            talkedParticipants.forEach(person => {
-                timeUsed += person.timeSpoken;
-            });
-            
-            // Remaining time for participants
-            const availableTime = remainingTime - timeUsed;
+            // Available time for remaining participants
+            const availableTime = remainingTimeSeconds - totalTimeUsed;
             const activeCount = names.length;
             
             // Calculate time per person based on remaining available time
-            return activeCount > 0 ? availableTime / activeCount : 0;
+            const timePerPerson = activeCount > 0 ? availableTime / activeCount : 0;
+            
+            return Math.max(0, timePerPerson);
         }
 
         function updateCurrentSpeakerTimer() {
             if (!currentSpeaker || !currentSpeakerStartTime) return;
             
             const timePerPerson = getTimePerPerson();
-            const elapsed = (getUTCTime() - currentSpeakerStartTime) / 1000;
+            const elapsed = (Date.now() - currentSpeakerStartTime) / 1000;
             const remaining = Math.max(0, timePerPerson - elapsed);
             
             const element = document.querySelector(`[data-name="${currentSpeaker}"] .timer`);
@@ -396,14 +415,8 @@
         function startSpeaking(name) {
             if (currentSpeaker === name) return;
             
-            // If someone else was speaking, mark their time
-            if (currentSpeaker && currentSpeakerStartTime) {
-                const timeSpoken = (getUTCTime() - currentSpeakerStartTime) / 1000;
-                // We don't move them to talked list yet, just reset current speaker
-            }
-            
             currentSpeaker = name;
-            currentSpeakerStartTime = getUTCTime();
+            currentSpeakerStartTime = Date.now();
         }
 
         function markAsTalked(name) {
@@ -417,7 +430,7 @@
             let timeSpoken = 0;
             if (currentSpeaker === name && currentSpeakerStartTime) {
                 // Calculate how long they spoke
-                timeSpoken = (getUTCTime() - currentSpeakerStartTime) / 1000;
+                timeSpoken = (Date.now() - currentSpeakerStartTime) / 1000;
                 currentSpeaker = null;
                 currentSpeakerStartTime = null;
             }
@@ -434,12 +447,28 @@
             const charlaNotice = document.getElementById('charlaNotice');
             const charlaDisplay = document.getElementById('charlaTimeDisplay');
             
-            if (charlaTimeRemaining > 0) {
+            const { elapsed } = calculateTimeStats();
+            const charlaRemaining = charlaTimeRemaining - (elapsed * 60);
+            
+            if (charlaRemaining > 0 && charlaTimeRemaining > 0) {
                 charlaNotice.style.display = 'block';
-                charlaDisplay.textContent = formatTime(charlaTimeRemaining) + ' restante';
+                charlaDisplay.textContent = formatTime(charlaRemaining) + ' restante';
             } else {
                 charlaNotice.style.display = 'none';
             }
+        }
+
+        function updateCountdowns() {
+            const { elapsed, remaining } = calculateTimeStats();
+            
+            // Update elapsed time (counting up)
+            document.getElementById('elapsedTime').textContent = formatTime(elapsed * 60);
+            
+            // Update remaining time (counting down)
+            document.getElementById('remainingTime').textContent = formatTime(remaining * 60);
+            
+            // Update charla notice
+            updateCharlaNotice();
         }
 
         function render() {
@@ -464,7 +493,7 @@
                     
                     let timerValue;
                     if (currentSpeaker === name && currentSpeakerStartTime) {
-                        const elapsed = (getUTCTime() - currentSpeakerStartTime) / 1000;
+                        const elapsed = (Date.now() - currentSpeakerStartTime) / 1000;
                         const remaining = Math.max(0, timePerPerson - elapsed);
                         timerValue = formatTime(remaining);
                     } else {
@@ -500,16 +529,11 @@
                     talkedDiv.appendChild(item);
                 });
             }
-            
-            updateCharlaNotice();
         }
 
         function updateDisplays() {
             updateCurrentTime();
-            
-            const { elapsed, remaining } = calculateTimeStats();
-            document.getElementById('elapsedTime').textContent = formatTime(elapsed * 60);
-            document.getElementById('remainingTime').textContent = formatTime(remaining * 60);
+            updateCountdowns();
             
             if (currentSpeaker) {
                 updateCurrentSpeakerTimer();
