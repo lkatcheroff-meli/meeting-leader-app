@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reunión Activa</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+
+        .time-display {
+            font-size: 48px;
+            font-weight: 700;
+            color: #667eea;
+            text-align: center;
+        }
+
+        .time-label {
+            text-align: center;
+            color: #666;
+            margin-top: 5px;
+            font-size: 14px;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .stat-box {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-box h3 {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .stat-box .value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+        }
+
+        .panel h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .participant-item {
+            background: #f8f9fa;
+            padding: 18px 20px;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s;
+        }
+
+        .participant-item.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .participant-item.completed {
+            opacity: 0.6;
+            text-decoration: line-through;
+        }
+
+        .participant-info {
+            flex: 1;
+        }
+
+        .participant-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .participant-time {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        .participant-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .timer {
+            font-size: 24px;
+            font-weight: 700;
+            min-width: 80px;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .timer.active {
+            color: #ff6b6b;
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-talk {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-talk:hover {
+            background: #218838;
+            transform: scale(1.05);
+        }
+
+        .btn-complete {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .btn-complete:hover {
+            background: #ee5a5a;
+            transform: scale(1.05);
+        }
+
+        .btn-talked {
+            background: #6c757d;
+            color: white;
+            cursor: not-allowed;
+        }
+
+        .talked-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .talked-item {
+            background: #f8f9fa;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .talked-name {
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .talked-time {
+            color: #667eea;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-size: 16px;
+        }
+
+        .charla-notice {
+            background: linear-gradient(135deg, #ffa726 0%, #fb8c00 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .charla-notice h3 {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        .charla-time {
+            font-size: 32px;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Reunión en Progreso</h1>
+            <div class="time-display" id="currentTime"></div>
+            <div class="time-label">UTC-3 (Buenos Aires)</div>
+            <div class="stats-row">
+                <div class="stat-box">
+                    <h3>Tiempo Transcurrido</h3>
+                    <div class="value" id="elapsedTime">0:00</div>
+                </div>
+                <div class="stat-box">
+                    <h3>Tiempo Restante</h3>
+                    <div class="value" id="remainingTime">60:00</div>
+                </div>
+                <div class="stat-box">
+                    <h3>Participantes Restantes</h3>
+                    <div class="value" id="remainingParticipants">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="charlaNotice" class="charla-notice" style="display: none;">
+            <h3>⏱️ Tiempo de Charla</h3>
+            <div class="charla-time" id="charlaTimeDisplay">0:00 restante</div>
+        </div>
+
+        <div class="main-content">
+            <div class="panel">
+                <h2>Participantes Activos</h2>
+                <div id="activeParticipants"></div>
+            </div>
+
+            <div class="panel">
+                <h2>Ya Hablaron</h2>
+                <div class="talked-list" id="talkedList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let meetingData = JSON.parse(localStorage.getItem('meetingData'));
+        
+        if (!meetingData) {
+            alert('No se encontraron datos de la reunión. Por favor vuelve atrás para configurar la reunión.');
+            window.location.href = 'meeting-leader.html';
+        }
+
+        let names = [...meetingData.names];
+        let talkedParticipants = [];
+        let currentSpeaker = null;
+        let currentSpeakerStartTime = null;
+        let charlaTimeUsed = 0;
+        let charlaTimeRemaining = meetingData.charlaMinutes * 60;
+        let timeUsedBySpeakers = 0; // Track time used by speakers
+
+        function getUTCTime() {
+            const now = new Date();
+            const utc3Time = new Date(now.getTime() - (3 * 60 * 60 * 1000));
+            return utc3Time;
+        }
+
+        function updateCurrentTime() {
+            const utc3Time = getUTCTime();
+            const timeStr = utc3Time.toLocaleTimeString('en-US', { hour12: false });
+            document.getElementById('currentTime').textContent = timeStr;
+        }
+
+        function getMeetingTimes() {
+            const [startHour, startMin] = meetingData.startTime.split(':').map(Number);
+            const [endHour, endMin] = meetingData.endTime.split(':').map(Number);
+            
+            const today = getUTCTime();
+            const startDate = new Date(today);
+            startDate.setUTCHours(startHour + 3, startMin, 0, 0);
+            
+            const endDate = new Date(today);
+            endDate.setUTCHours(endHour + 3, endMin, 0, 0);
+            
+            return { startDate, endDate };
+        }
+
+        function calculateTimeStats() {
+            const { startDate, endDate } = getMeetingTimes();
+            const now = getUTCTime();
+            
+            const totalDuration = (endDate - startDate) / 1000 / 60;
+            const elapsed = Math.max(0, (now - startDate) / 1000 / 60);
+            const remaining = Math.max(0, totalDuration - elapsed);
+            
+            return { elapsed, remaining, totalDuration, now };
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function getTimePerPerson() {
+            const { remaining, now } = calculateTimeStats();
+            
+            // Calculate remaining time in seconds
+            const remainingTime = remaining * 60;
+            
+            // Calculate time used so far
+            let timeUsed = 0;
+            
+            // Add time for current speaker if speaking
+            if (currentSpeaker && currentSpeakerStartTime) {
+                const currentTimeUsed = (now - currentSpeakerStartTime) / 1000;
+                timeUsed += currentTimeUsed;
+            }
+            
+            // Add time already used by participants who finished
+            talkedParticipants.forEach(person => {
+                timeUsed += person.timeSpoken;
+            });
+            
+            // Remaining time for participants
+            const availableTime = remainingTime - timeUsed;
+            const activeCount = names.length;
+            
+            // Calculate time per person based on remaining available time
+            return activeCount > 0 ? availableTime / activeCount : 0;
+        }
+
+        function updateCurrentSpeakerTimer() {
+            if (!currentSpeaker || !currentSpeakerStartTime) return;
+            
+            const timePerPerson = getTimePerPerson();
+            const elapsed = (getUTCTime() - currentSpeakerStartTime) / 1000;
+            const remaining = Math.max(0, timePerPerson - elapsed);
+            
+            const element = document.querySelector(`[data-name="${currentSpeaker}"] .timer`);
+            if (element) {
+                element.textContent = formatTime(remaining);
+                
+                if (remaining < 10) {
+                    element.classList.add('active');
+                } else {
+                    element.classList.remove('active');
+                }
+            }
+        }
+
+        function startSpeaking(name) {
+            if (currentSpeaker === name) return;
+            
+            // If someone else was speaking, mark their time
+            if (currentSpeaker && currentSpeakerStartTime) {
+                const timeSpoken = (getUTCTime() - currentSpeakerStartTime) / 1000;
+                // We don't move them to talked list yet, just reset current speaker
+            }
+            
+            currentSpeaker = name;
+            currentSpeakerStartTime = getUTCTime();
+        }
+
+        function markAsTalked(name) {
+            if (talkedParticipants.find(p => p.name === name)) return;
+            
+            const index = names.indexOf(name);
+            if (index === -1) return;
+            
+            names.splice(index, 1);
+            
+            let timeSpoken = 0;
+            if (currentSpeaker === name && currentSpeakerStartTime) {
+                // Calculate how long they spoke
+                timeSpoken = (getUTCTime() - currentSpeakerStartTime) / 1000;
+                currentSpeaker = null;
+                currentSpeakerStartTime = null;
+            }
+            
+            talkedParticipants.push({
+                name: name,
+                timeSpoken: timeSpoken
+            });
+            
+            render();
+        }
+
+        function updateCharlaNotice() {
+            const charlaNotice = document.getElementById('charlaNotice');
+            const charlaDisplay = document.getElementById('charlaTimeDisplay');
+            
+            if (charlaTimeRemaining > 0) {
+                charlaNotice.style.display = 'block';
+                charlaDisplay.textContent = formatTime(charlaTimeRemaining) + ' restante';
+            } else {
+                charlaNotice.style.display = 'none';
+            }
+        }
+
+        function render() {
+            const activeDiv = document.getElementById('activeParticipants');
+            const talkedDiv = document.getElementById('talkedList');
+            const remainingCount = document.getElementById('remainingParticipants');
+            
+            activeDiv.innerHTML = '';
+            talkedDiv.innerHTML = '';
+            
+            remainingCount.textContent = names.length;
+            
+            if (names.length === 0) {
+                activeDiv.innerHTML = '<div class="empty-state">¡Todos los participantes han hablado!</div>';
+            } else {
+                const timePerPerson = getTimePerPerson();
+                
+                names.forEach(name => {
+                    const item = document.createElement('div');
+                    item.className = 'participant-item' + (currentSpeaker === name ? ' active' : '');
+                    item.setAttribute('data-name', name);
+                    
+                    let timerValue;
+                    if (currentSpeaker === name && currentSpeakerStartTime) {
+                        const elapsed = (getUTCTime() - currentSpeakerStartTime) / 1000;
+                        const remaining = Math.max(0, timePerPerson - elapsed);
+                        timerValue = formatTime(remaining);
+                    } else {
+                        timerValue = formatTime(timePerPerson);
+                    }
+                    
+                    item.innerHTML = `
+                        <div class="participant-info">
+                            <div class="participant-name">${name}</div>
+                            <div class="participant-time">Asignado: ${formatTime(timePerPerson)}</div>
+                        </div>
+                        <div class="participant-actions">
+                            <div class="timer ${currentSpeaker === name ? 'active' : ''}">${timerValue}</div>
+                            <button class="btn-talk" onclick="startSpeaking('${name}')">Empezar</button>
+                            <button class="btn-complete" onclick="markAsTalked('${name}')">Ya Habló</button>
+                        </div>
+                    `;
+                    
+                    activeDiv.appendChild(item);
+                });
+            }
+            
+            if (talkedParticipants.length === 0) {
+                talkedDiv.innerHTML = '<div class="empty-state">Nadie ha hablado aún</div>';
+            } else {
+                talkedParticipants.forEach(person => {
+                    const item = document.createElement('div');
+                    item.className = 'talked-item';
+                    item.innerHTML = `
+                        <span class="talked-name">${person.name}</span>
+                        <span class="talked-time">${formatTime(person.timeSpoken)}</span>
+                    `;
+                    talkedDiv.appendChild(item);
+                });
+            }
+            
+            updateCharlaNotice();
+        }
+
+        function updateDisplays() {
+            updateCurrentTime();
+            
+            const { elapsed, remaining } = calculateTimeStats();
+            document.getElementById('elapsedTime').textContent = formatTime(elapsed * 60);
+            document.getElementById('remainingTime').textContent = formatTime(remaining * 60);
+            
+            if (currentSpeaker) {
+                updateCurrentSpeakerTimer();
+            }
+            
+            // Re-render to update time allocations dynamically
+            render();
+        }
+
+        window.startSpeaking = startSpeaking;
+        window.markAsTalked = markAsTalked;
+
+        // Update every second
+        setInterval(updateDisplays, 1000);
+        
+        render();
+        updateDisplays();
+    </script>
+</body>
+</html>

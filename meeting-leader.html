@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Líder de Reunión</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+
+        .time-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .time-inputs {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .time-group {
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .time-group label {
+            display: block;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .time-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .time-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .charla-section {
+            margin-top: 15px;
+        }
+
+        .charla-section label {
+            display: block;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .slider {
+            flex: 1;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 5px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #667eea;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #667eea;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        .slider-value {
+            min-width: 60px;
+            font-weight: 600;
+            color: #667eea;
+            font-size: 16px;
+        }
+
+        .time-summary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .time-summary h3 {
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+
+        .time-breakdown {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .time-breakdown:last-child {
+            margin-bottom: 0;
+            font-weight: 600;
+            font-size: 18px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .input-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-add {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-add:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-add:active {
+            transform: translateY(0);
+        }
+
+        .btn-start {
+            background: #28a745;
+            color: white;
+            font-size: 18px;
+            padding: 15px 30px;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .btn-start:hover {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+        }
+
+        .name-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .name-item {
+            background: #f8f9fa;
+            padding: 16px 20px;
+            border-radius: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .name-text {
+            font-size: 18px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .btn-delete {
+            background: #ff6b6b;
+            color: white;
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+
+        .btn-delete:hover {
+            background: #ee5a5a;
+            transform: scale(1.05);
+        }
+
+        .btn-delete:active {
+            transform: scale(0.95);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Líder de Reunión</h1>
+        <p class="subtitle">Administra los participantes y el tiempo de tu reunión</p>
+
+        <div class="time-section">
+            <div class="time-inputs">
+                <div class="time-group">
+                    <label>Inicio de Reunión</label>
+                    <input type="time" id="startTime" value="09:30" />
+                </div>
+                <div class="time-group">
+                    <label>Fin de Reunión</label>
+                    <input type="time" id="endTime" value="10:30" />
+                </div>
+            </div>
+
+            <div class="charla-section">
+                <label>Tiempo de Charla (minutos)</label>
+                <div class="slider-container">
+                    <input type="range" id="charlaSlider" class="slider" min="0" max="60" value="0" step="1" />
+                    <span class="slider-value" id="charlaValue">0 min</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="time-summary" id="timeSummary"></div>
+
+        <div class="input-section">
+            <input type="text" id="nameInput" placeholder="Ingresar nombre del participante..." />
+            <button class="btn-add" onclick="addName()">Agregar</button>
+        </div>
+
+        <div class="name-list" id="nameList"></div>
+
+        <button class="btn-start" onclick="startMeeting()">Empezar Reunión</button>
+    </div>
+
+    <script>
+        const defaultNames = ['Agus', 'Mel', 'Lean', 'Dani', 'Vic', 'Mate', 'Mauge', 'Lu'];
+        let names = [...defaultNames];
+
+        function getMeetingDuration() {
+            const startTime = document.getElementById('startTime').value;
+            const endTime = document.getElementById('endTime').value;
+            
+            if (!startTime || !endTime) return 0;
+
+            const [startHours, startMins] = startTime.split(':').map(Number);
+            const [endHours, endMins] = endTime.split(':').map(Number);
+            
+            const startTotal = startHours * 60 + startMins;
+            const endTotal = endHours * 60 + endMins;
+            
+            return endTotal - startTotal;
+        }
+
+        function updateSliderMax() {
+            const maxMinutes = getMeetingDuration();
+            const slider = document.getElementById('charlaSlider');
+            slider.max = Math.max(0, maxMinutes);
+            
+            if (parseInt(slider.value) > maxMinutes) {
+                slider.value = maxMinutes;
+            }
+        }
+
+        function formatMinutes(minutes) {
+            const mins = Math.floor(minutes);
+            const seconds = Math.round((minutes - mins) * 60);
+            return `${mins}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function updateTimeSummary() {
+            const totalMinutes = getMeetingDuration();
+            const charlaMinutes = parseInt(document.getElementById('charlaSlider').value);
+            const participantMinutes = totalMinutes - charlaMinutes;
+            const participants = names.length;
+
+            let perPersonTime = 0;
+            if (participants > 0) {
+                perPersonTime = participantMinutes / participants;
+            }
+
+            const summary = document.getElementById('timeSummary');
+            summary.innerHTML = `
+                <h3>⏱️ Resumen de Tiempo</h3>
+                <div class="time-breakdown">
+                    <span>Tiempo Total de Reunión:</span>
+                    <span>${totalMinutes} min (${formatMinutes(totalMinutes)})</span>
+                </div>
+                <div class="time-breakdown">
+                    <span>Tiempo de Charla:</span>
+                    <span>${charlaMinutes} min (${formatMinutes(charlaMinutes)})</span>
+                </div>
+                <div class="time-breakdown">
+                    <span>Tiempo para ${participants} Participantes:</span>
+                    <span>${participantMinutes} min (${formatMinutes(participantMinutes)})</span>
+                </div>
+                <div class="time-breakdown">
+                    <span>Tiempo por Persona:</span>
+                    <span>${formatMinutes(perPersonTime)} cada uno</span>
+                </div>
+            `;
+        }
+
+        function renderNames() {
+            const nameList = document.getElementById('nameList');
+            nameList.innerHTML = '';
+
+            if (names.length === 0) {
+                nameList.innerHTML = '<div class="empty-state">Todavía no hay participantes</div>';
+                updateTimeSummary();
+                return;
+            }
+
+            const totalMinutes = getMeetingDuration();
+            const charlaMinutes = parseInt(document.getElementById('charlaSlider').value);
+            const participantMinutes = totalMinutes - charlaMinutes;
+            const perPersonTime = participantMinutes / names.length;
+
+            names.forEach((name, index) => {
+                const nameItem = document.createElement('div');
+                nameItem.className = 'name-item';
+                nameItem.innerHTML = `
+                    <span class="name-text">${name}</span>
+                    <span style="color: #667eea; font-weight: 600;">${formatMinutes(perPersonTime)}</span>
+                    <button class="btn-delete" onclick="removeName(${index})">Eliminar</button>
+                `;
+                nameList.appendChild(nameItem);
+            });
+
+            updateTimeSummary();
+        }
+
+        function addName() {
+            const input = document.getElementById('nameInput');
+            const name = input.value.trim();
+
+            if (name === '') {
+                alert('Por favor ingresa un nombre');
+                return;
+            }
+
+            if (names.includes(name)) {
+                alert('Este nombre ya existe');
+                return;
+            }
+
+            names.push(name);
+            input.value = '';
+            renderNames();
+        }
+
+        function removeName(index) {
+            if (confirm(`¿Eliminar a ${names[index]} de la reunión?`)) {
+                names.splice(index, 1);
+                renderNames();
+            }
+        }
+
+        function startMeeting() {
+            if (names.length === 0) {
+                alert('Por favor agrega al menos un participante');
+                return;
+            }
+
+            const meetingData = {
+                names: names,
+                startTime: document.getElementById('startTime').value,
+                endTime: document.getElementById('endTime').value,
+                charlaMinutes: parseInt(document.getElementById('charlaSlider').value)
+            };
+
+            localStorage.setItem('meetingData', JSON.stringify(meetingData));
+            window.location.href = 'active-meeting.html';
+        }
+
+        document.getElementById('nameInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                addName();
+            }
+        });
+
+        document.getElementById('startTime').addEventListener('change', function() {
+            updateSliderMax();
+            updateTimeSummary();
+        });
+
+        document.getElementById('endTime').addEventListener('change', function() {
+            updateSliderMax();
+            updateTimeSummary();
+        });
+
+        document.getElementById('charlaSlider').addEventListener('input', function() {
+            document.getElementById('charlaValue').textContent = this.value + ' min';
+            renderNames();
+        });
+
+        updateSliderMax();
+        renderNames();
+    </script>
+</body>
+</html>
