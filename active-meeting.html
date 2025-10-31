@@ -312,7 +312,7 @@
             
             // Get current UTC-3 time
             const now = new Date();
-            const utc3Time = new Date(now.getTime() - (3 * 60 * 60 * 1000));
+            const utc3Time = new Date(now.getTime());
             
             // Create meeting start date (today at the specified time in UTC-3)
             const startDate = new Date(utc3Time);
@@ -332,7 +332,7 @@
 
         function getUTCTime() {
             const now = new Date();
-            const utc3Time = new Date(now.getTime() - (3 * 60 * 60 * 1000));
+            const utc3Time = new Date(now.getTime());
             return utc3Time;
         }
 
@@ -368,14 +368,17 @@
             const { remaining } = calculateTimeStats();
             const remainingTimeSeconds = remaining * 60;
             
-            // Calculate total time already used by participants who finished speaking
-            let totalTimeUsed = 0;
+            // Calculate total time already used by participants who FINISHED speaking
+            // This excludes the current speaker (they're still using their time)
+            let totalTimeUsedByFinished = 0;
             talkedParticipants.forEach(person => {
-                totalTimeUsed += person.timeSpoken;
+                totalTimeUsedByFinished += person.timeSpoken;
             });
             
-            // Available time for all remaining participants
-            const availableTime = remainingTimeSeconds - totalTimeUsed;
+            // Available time for all remaining participants (only those in the 'names' array)
+            const availableTime = remainingTimeSeconds;
+            
+            // Only count active participants (those who haven't spoken yet)
             const activeCount = names.length;
             
             // Time per person (only calculate when no one is speaking)
@@ -385,6 +388,16 @@
         }
 
         function getTimeForParticipant(name) {
+            // Check if this person has already spoken
+            if (talkedParticipants.find(p => p.name === name)) {
+                return 0; // They've already spoken
+            }
+            
+            // Check if this person is in the active names list
+            if (!names.includes(name)) {
+                return 0; // They're not an active participant
+            }
+            
             // If someone is speaking, return their allocated time (which counts down)
             if (currentSpeaker === name) {
                 // Get their original allocated time
@@ -403,24 +416,39 @@
         }
 
         function updateAllocatedTimes() {
-            const timePerPerson = calculateAllocatedTimes();
-            
             // Only update allocated times when no one is speaking
             if (!currentSpeaker) {
-                // Store the allocated time for each participant
+                const timePerPerson = calculateAllocatedTimes();
+                
+                // Update the allocated time for each active participant
                 names.forEach(name => {
+                    // Make sure they haven't already spoken
                     if (!talkedParticipants.find(p => p.name === name)) {
                         allocatedTimes[name] = timePerPerson;
                     }
                 });
-            } else {
-                // When someone is speaking, keep everyone else's time the same
-                // Only update the speaking person's countdown
+                
+                // Clean up allocated times for people who have spoken
+                Object.keys(allocatedTimes).forEach(name => {
+                    if (talkedParticipants.find(p => p.name === name) || !names.includes(name)) {
+                        delete allocatedTimes[name];
+                    }
+                });
             }
         }
 
         function startSpeaking(name) {
             if (currentSpeaker === name) return;
+            
+            // Make sure this person hasn't already spoken
+            if (talkedParticipants.find(p => p.name === name)) {
+                return;
+            }
+            
+            // Make sure they're still in the active list
+            if (!names.includes(name)) {
+                return;
+            }
             
             // Calculate and update allocated times before starting to speak
             updateAllocatedTimes();
@@ -435,13 +463,16 @@
         }
 
         function markAsTalked(name) {
+            // Check if already marked
             if (talkedParticipants.find(p => p.name === name)) return;
             
             const index = names.indexOf(name);
             if (index === -1) return;
             
+            // Remove from active names
             names.splice(index, 1);
             
+            // Calculate time spoken
             let timeSpoken = 0;
             if (currentSpeaker === name && currentSpeakerStartTime) {
                 timeSpoken = (Date.now() - currentSpeakerStartTime) / 1000;
@@ -449,6 +480,7 @@
                 currentSpeakerStartTime = null;
             }
             
+            // Add to talked participants
             talkedParticipants.push({
                 name: name,
                 timeSpoken: timeSpoken
@@ -456,6 +488,9 @@
             
             // Remove from allocated times
             delete allocatedTimes[name];
+            
+            // Recalculate allocations for remaining participants
+            updateAllocatedTimes();
             
             render();
         }
@@ -492,6 +527,7 @@
             activeDiv.innerHTML = '';
             talkedDiv.innerHTML = '';
             
+            // Only count people who haven't spoken
             remainingCount.textContent = names.length;
             
             // Update allocated times when no one is speaking
@@ -503,6 +539,11 @@
                 activeDiv.innerHTML = '<div class="empty-state">¡Todos los participantes han hablado!</div>';
             } else {
                 names.forEach(name => {
+                    // Double check they haven't spoken
+                    if (talkedParticipants.find(p => p.name === name)) {
+                        return; // Skip this person
+                    }
+                    
                     const item = document.createElement('div');
                     item.className = 'participant-item' + (currentSpeaker === name ? ' active' : '');
                     item.setAttribute('data-name', name);
