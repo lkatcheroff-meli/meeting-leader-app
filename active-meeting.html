@@ -188,6 +188,83 @@
             transform: scale(1.05);
         }
 
+        .btn-pause {
+            background: #ffa726;
+            color: white;
+        }
+
+        .btn-pause:hover {
+            background: #fb8c00;
+            transform: scale(1.05);
+        }
+
+        .transfer-form {
+            background: #f0f4ff;
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border: 2px solid rgba(102, 126, 234, 0.2);
+        }
+
+        .transfer-label {
+            font-size: 14px;
+            color: #666;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .transfer-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .transfer-row select {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
+        }
+
+        .transfer-row select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .transfer-arrow {
+            color: #667eea;
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .transfer-amount {
+            width: 110px;
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .transfer-amount:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn-transfer {
+            background: #667eea;
+            color: white;
+            padding: 8px 20px;
+            font-size: 14px;
+        }
+
+        .btn-transfer:hover {
+            background: #5568d3;
+            transform: scale(1.05);
+        }
+
         .btn-talked {
             background: #6c757d;
             color: white;
@@ -277,6 +354,16 @@
         <div class="main-content">
             <div class="panel">
                 <h2>Participantes Activos</h2>
+                <div id="transferForm" class="transfer-form" style="display: none;">
+                    <div class="transfer-label">Traspasar tiempo</div>
+                    <div class="transfer-row">
+                        <select id="transferFromSel"></select>
+                        <span class="transfer-arrow">→</span>
+                        <select id="transferToSel"></select>
+                        <input type="number" id="transferAmount" class="transfer-amount" min="1" step="1" placeholder="Segundos" />
+                        <button class="btn-transfer" id="transferBtn">Traspasar</button>
+                    </div>
+                </div>
                 <div id="activeParticipants"></div>
             </div>
 
@@ -304,6 +391,55 @@
         
         // Store allocated times for each participant (only updates when no one is speaking)
         let allocatedTimes = {};
+
+        // Pause state for the current speaker
+        let speakerPaused = false;
+        let speakerPauseStart = null;
+        let speakerTotalPaused = 0;
+
+        // Timestamp of the last "idle tick" (no speaker, meeting in progress).
+        // Used to absorb dead time into the remaining participants' budgets.
+        let lastIdleTick = null;
+
+        function tickIdle() {
+            const { hasStarted } = calculateMeetingDates();
+            if (!hasStarted || currentSpeaker || names.length === 0) {
+                lastIdleTick = null;
+                return;
+            }
+            const now = Date.now();
+            if (lastIdleTick !== null) {
+                const deltaSec = (now - lastIdleTick) / 1000;
+                if (deltaSec > 0) {
+                    const perPerson = deltaSec / names.length;
+                    names.forEach(n => {
+                        allocatedTimes[n] = Math.max(0, (allocatedTimes[n] || 0) - perPerson);
+                    });
+                }
+            }
+            lastIdleTick = now;
+        }
+
+        function getSpeakerElapsed() {
+            if (!currentSpeaker || !currentSpeakerStartTime) return 0;
+            const end = speakerPaused ? speakerPauseStart : Date.now();
+            return Math.max(0, (end - currentSpeakerStartTime - speakerTotalPaused) / 1000);
+        }
+
+        function pauseSpeaker() {
+            if (!currentSpeaker || speakerPaused) return;
+            speakerPaused = true;
+            speakerPauseStart = Date.now();
+            render();
+        }
+
+        function resumeSpeaker() {
+            if (!currentSpeaker || !speakerPaused) return;
+            speakerTotalPaused += Date.now() - speakerPauseStart;
+            speakerPaused = false;
+            speakerPauseStart = null;
+            render();
+        }
         
         // Calculate meeting start and end dates in UTC-3
         function calculateMeetingDates() {
@@ -367,52 +503,52 @@
         function calculateAllocatedTimes() {
             const { remaining } = calculateTimeStats();
             const remainingTimeSeconds = remaining * 60;
-            
-            // Calculate total time already used by participants who FINISHED speaking
-            // This excludes the current speaker (they're still using their time)
-            let totalTimeUsedByFinished = 0;
-            talkedParticipants.forEach(person => {
-                totalTimeUsedByFinished += person.timeSpoken;
-            });
-            
-            // Available time for all remaining participants (only those in the 'names' array)
-            const availableTime = remainingTimeSeconds;
-            
-            // Only count active participants (those who haven't spoken yet)
             const activeCount = names.length;
-            
-            // Time per person (only calculate when no one is speaking)
-            const timePerPerson = activeCount > 0 ? availableTime / activeCount : 0;
-            
+            const timePerPerson = activeCount > 0 ? remainingTimeSeconds / activeCount : 0;
             return Math.max(0, timePerPerson);
         }
 
+        function getSpeakerOverage() {
+            if (!currentSpeaker || !currentSpeakerStartTime) return 0;
+            const allocated = allocatedTimes[currentSpeaker] || 0;
+            return Math.max(0, getSpeakerElapsed() - allocated);
+        }
+
+        function getPauseTimeTotal() {
+            const inProgress = speakerPaused && speakerPauseStart ? (Date.now() - speakerPauseStart) : 0;
+            return (speakerTotalPaused + inProgress) / 1000;
+        }
+
         function getTimeForParticipant(name) {
-            // Check if this person has already spoken
-            if (talkedParticipants.find(p => p.name === name)) {
-                return 0; // They've already spoken
-            }
-            
-            // Check if this person is in the active names list
-            if (!names.includes(name)) {
-                return 0; // They're not an active participant
-            }
-            
-            // If someone is speaking, return their allocated time (which counts down)
+            if (talkedParticipants.find(p => p.name === name)) return 0;
+            if (!names.includes(name)) return 0;
+
+            // Current speaker: their own countdown (can go to 0, then overage starts)
             if (currentSpeaker === name) {
-                // Get their original allocated time
                 const allocatedTime = allocatedTimes[name] || 0;
-                
-                // Calculate how much time has passed since they started
                 if (currentSpeakerStartTime) {
-                    const elapsed = (Date.now() - currentSpeakerStartTime) / 1000;
-                    return Math.max(0, allocatedTime - elapsed);
+                    return Math.max(0, allocatedTime - getSpeakerElapsed());
                 }
                 return allocatedTime;
             }
-            
-            // If no one is speaking or this person is not speaking, return their current allocated time
-            return allocatedTimes[name] || 0;
+
+            const baseTime = allocatedTimes[name] || 0;
+
+            // While someone else is speaking, two things reduce others' time:
+            //   - overage: speaker exceeded their allocation (active speech beyond budget)
+            //   - pause: time lost while the speaker's timer is frozen
+            // Both are absorbed by the remaining active participants equally.
+            if (currentSpeaker) {
+                const deduction = getSpeakerOverage() + getPauseTimeTotal();
+                if (deduction > 0) {
+                    const otherCount = names.filter(n => n !== currentSpeaker).length;
+                    if (otherCount > 0) {
+                        return Math.max(0, baseTime - deduction / otherCount);
+                    }
+                }
+            }
+
+            return baseTime;
         }
 
         function updateAllocatedTimes() {
@@ -437,61 +573,154 @@
             }
         }
 
+        function resetSpeakerState() {
+            currentSpeaker = null;
+            currentSpeakerStartTime = null;
+            speakerPaused = false;
+            speakerPauseStart = null;
+            speakerTotalPaused = 0;
+        }
+
+        // Persist the current speaker's in-flight state into allocatedTimes:
+        //   - speaker's own allocation drops by how much they actually spoke
+        //   - overage + paused time is absorbed evenly by the other active participants
+        function commitSpeakerState() {
+            if (!currentSpeaker || !currentSpeakerStartTime) return 0;
+            const speakerName = currentSpeaker;
+            const elapsed = getSpeakerElapsed();
+            const deduction = getSpeakerOverage() + getPauseTimeTotal();
+
+            allocatedTimes[speakerName] = Math.max(0, (allocatedTimes[speakerName] || 0) - elapsed);
+
+            const others = names.filter(n => n !== speakerName);
+            if (deduction > 0 && others.length > 0) {
+                const perOther = deduction / others.length;
+                others.forEach(n => {
+                    allocatedTimes[n] = Math.max(0, (allocatedTimes[n] || 0) - perOther);
+                });
+            }
+            return elapsed;
+        }
+
         function startSpeaking(name) {
             if (currentSpeaker === name) return;
-            
-            // Make sure this person hasn't already spoken
-            if (talkedParticipants.find(p => p.name === name)) {
-                return;
+            if (talkedParticipants.find(p => p.name === name)) return;
+            if (!names.includes(name)) return;
+
+            // If switching mid-speech, freeze the previous speaker's remaining time.
+            if (currentSpeaker && currentSpeaker !== name) {
+                commitSpeakerState();
+                resetSpeakerState();
             }
-            
-            // Make sure they're still in the active list
-            if (!names.includes(name)) {
-                return;
-            }
-            
-            // Calculate and update allocated times before starting to speak
-            updateAllocatedTimes();
-            
-            // If they don't have an allocated time yet, give them the current allocation
-            if (!allocatedTimes[name]) {
+
+            // Safety net: if this participant never got an allocation, fall back to an equal share.
+            if (allocatedTimes[name] === undefined) {
                 allocatedTimes[name] = calculateAllocatedTimes();
             }
-            
+
             currentSpeaker = name;
             currentSpeakerStartTime = Date.now();
+            speakerPaused = false;
+            speakerPauseStart = null;
+            speakerTotalPaused = 0;
         }
 
         function markAsTalked(name) {
-            // Check if already marked
             if (talkedParticipants.find(p => p.name === name)) return;
-            
             const index = names.indexOf(name);
             if (index === -1) return;
-            
-            // Remove from active names
-            names.splice(index, 1);
-            
-            // Calculate time spoken
+
             let timeSpoken = 0;
             if (currentSpeaker === name && currentSpeakerStartTime) {
-                timeSpoken = (Date.now() - currentSpeakerStartTime) / 1000;
-                currentSpeaker = null;
-                currentSpeakerStartTime = null;
+                timeSpoken = getSpeakerElapsed();
+                // Distribute overage/pause to the others BEFORE removing this person.
+                const deduction = getSpeakerOverage() + getPauseTimeTotal();
+                const others = names.filter(n => n !== name);
+                if (deduction > 0 && others.length > 0) {
+                    const perOther = deduction / others.length;
+                    others.forEach(n => {
+                        allocatedTimes[n] = Math.max(0, (allocatedTimes[n] || 0) - perOther);
+                    });
+                }
+                resetSpeakerState();
             }
-            
-            // Add to talked participants
-            talkedParticipants.push({
-                name: name,
-                timeSpoken: timeSpoken
-            });
-            
-            // Remove from allocated times
+
+            // Their unused time (if any) goes back to the remaining active participants.
+            const speakerAllocated = allocatedTimes[name] || 0;
+            const leftover = Math.max(0, speakerAllocated - timeSpoken);
+
+            names.splice(index, 1);
+            talkedParticipants.push({ name: name, timeSpoken: timeSpoken });
             delete allocatedTimes[name];
-            
-            // Recalculate allocations for remaining participants
-            updateAllocatedTimes();
-            
+
+            if (leftover > 0 && names.length > 0) {
+                const perOther = leftover / names.length;
+                names.forEach(n => {
+                    allocatedTimes[n] = (allocatedTimes[n] || 0) + perOther;
+                });
+            }
+
+            render();
+        }
+
+        function syncTransferForm() {
+            const form = document.getElementById('transferForm');
+            if (names.length < 2) {
+                form.style.display = 'none';
+                return;
+            }
+            form.style.display = '';
+
+            const fromSel = document.getElementById('transferFromSel');
+            const toSel = document.getElementById('transferToSel');
+
+            // Only rebuild options if names changed (preserves focus/selection/input)
+            const currentOptions = Array.from(fromSel.options).map(o => o.value);
+            const sameOptions = currentOptions.length === names.length
+                && currentOptions.every((v, i) => v === names[i]);
+            if (sameOptions) return;
+
+            const prevFrom = fromSel.value;
+            const prevTo = toSel.value;
+
+            fromSel.innerHTML = '';
+            toSel.innerHTML = '';
+            names.forEach(n => {
+                fromSel.add(new Option(n, n));
+                toSel.add(new Option(n, n));
+            });
+
+            fromSel.value = names.includes(prevFrom) ? prevFrom : names[0];
+            if (names.includes(prevTo) && prevTo !== fromSel.value) {
+                toSel.value = prevTo;
+            } else {
+                toSel.value = names.find(n => n !== fromSel.value) || names[0];
+            }
+        }
+
+        function doTransfer(from, to, seconds) {
+            if (!from || !to || from === to) {
+                alert('Elegí dos participantes distintos');
+                return;
+            }
+            if (!Number.isFinite(seconds) || seconds <= 0) {
+                alert('Ingresá una cantidad válida en segundos');
+                return;
+            }
+            if (!names.includes(from) || !names.includes(to)) return;
+
+            // Real remaining for the source. If they're the current speaker, subtract elapsed.
+            let available = allocatedTimes[from] || 0;
+            if (currentSpeaker === from) {
+                available = Math.max(0, available - getSpeakerElapsed());
+            }
+            if (available < seconds) {
+                alert(`${from} solo tiene ${formatTime(available)} disponibles`);
+                return;
+            }
+
+            allocatedTimes[from] = Math.max(0, (allocatedTimes[from] || 0) - seconds);
+            allocatedTimes[to] = (allocatedTimes[to] || 0) + seconds;
             render();
         }
 
@@ -526,57 +755,92 @@
             
             activeDiv.innerHTML = '';
             talkedDiv.innerHTML = '';
-            
+
             // Only count people who haven't spoken
             remainingCount.textContent = names.length;
-            
-            // Update allocated times when no one is speaking
-            if (!currentSpeaker) {
-                updateAllocatedTimes();
-            }
-            
+
+            // Keep transfer form's select options in sync (without recreating the form)
+            syncTransferForm();
+
             if (names.length === 0) {
-                activeDiv.innerHTML = '<div class="empty-state">¡Todos los participantes han hablado!</div>';
+                const empty = document.createElement('div');
+                empty.className = 'empty-state';
+                empty.textContent = '¡Todos los participantes han hablado!';
+                activeDiv.appendChild(empty);
             } else {
                 names.forEach(name => {
-                    // Double check they haven't spoken
-                    if (talkedParticipants.find(p => p.name === name)) {
-                        return; // Skip this person
-                    }
-                    
+                    if (talkedParticipants.find(p => p.name === name)) return;
+
                     const item = document.createElement('div');
                     item.className = 'participant-item' + (currentSpeaker === name ? ' active' : '');
                     item.setAttribute('data-name', name);
-                    
-                    const timerValue = formatTime(getTimeForParticipant(name));
+
+                    const remainingForName = getTimeForParticipant(name);
+                    const timerValue = formatTime(remainingForName);
                     const allocatedTime = formatTime(allocatedTimes[name] || 0);
-                    
-                    item.innerHTML = `
-                        <div class="participant-info">
-                            <div class="participant-name">${name}</div>
-                            <div class="participant-time">Asignado: ${allocatedTime}</div>
-                        </div>
-                        <div class="participant-actions">
-                            <div class="timer ${currentSpeaker === name && getTimeForParticipant(name) < 10 ? 'active' : ''}">${timerValue}</div>
-                            <button class="btn-talk" onclick="startSpeaking('${name}')">Empezar</button>
-                            <button class="btn-complete" onclick="markAsTalked('${name}')">Ya Habló</button>
-                        </div>
-                    `;
-                    
+
+                    const info = document.createElement('div');
+                    info.className = 'participant-info';
+                    const nameDiv = document.createElement('div');
+                    nameDiv.className = 'participant-name';
+                    nameDiv.textContent = name;
+                    const timeDiv = document.createElement('div');
+                    timeDiv.className = 'participant-time';
+                    timeDiv.textContent = 'Asignado: ' + allocatedTime;
+                    info.appendChild(nameDiv);
+                    info.appendChild(timeDiv);
+
+                    const actions = document.createElement('div');
+                    actions.className = 'participant-actions';
+                    const timer = document.createElement('div');
+                    timer.className = 'timer' + (currentSpeaker === name && !speakerPaused && remainingForName < 10 ? ' active' : '');
+                    timer.textContent = speakerPaused && currentSpeaker === name ? timerValue + ' ⏸' : timerValue;
+
+                    actions.appendChild(timer);
+
+                    if (currentSpeaker === name) {
+                        const btnPause = document.createElement('button');
+                        btnPause.className = 'btn-pause';
+                        btnPause.textContent = speakerPaused ? 'Reanudar' : 'Pausa';
+                        btnPause.addEventListener('click', () => speakerPaused ? resumeSpeaker() : pauseSpeaker());
+                        actions.appendChild(btnPause);
+                    } else {
+                        const btnTalk = document.createElement('button');
+                        btnTalk.className = 'btn-talk';
+                        btnTalk.textContent = 'Empezar';
+                        btnTalk.addEventListener('click', () => startSpeaking(name));
+                        actions.appendChild(btnTalk);
+                    }
+
+                    const btnDone = document.createElement('button');
+                    btnDone.className = 'btn-complete';
+                    btnDone.textContent = 'Ya Habló';
+                    btnDone.addEventListener('click', () => markAsTalked(name));
+                    actions.appendChild(btnDone);
+
+                    item.appendChild(info);
+                    item.appendChild(actions);
                     activeDiv.appendChild(item);
                 });
             }
-            
+
             if (talkedParticipants.length === 0) {
-                talkedDiv.innerHTML = '<div class="empty-state">Nadie ha hablado aún</div>';
+                const empty = document.createElement('div');
+                empty.className = 'empty-state';
+                empty.textContent = 'Nadie ha hablado aún';
+                talkedDiv.appendChild(empty);
             } else {
                 talkedParticipants.forEach(person => {
                     const item = document.createElement('div');
                     item.className = 'talked-item';
-                    item.innerHTML = `
-                        <span class="talked-name">${person.name}</span>
-                        <span class="talked-time">${formatTime(person.timeSpoken)}</span>
-                    `;
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'talked-name';
+                    nameSpan.textContent = person.name;
+                    const timeSpan = document.createElement('span');
+                    timeSpan.className = 'talked-time';
+                    timeSpan.textContent = formatTime(person.timeSpoken);
+                    item.appendChild(nameSpan);
+                    item.appendChild(timeSpan);
                     talkedDiv.appendChild(item);
                 });
             }
@@ -585,13 +849,25 @@
         function updateDisplays() {
             updateCurrentTime();
             updateCountdowns();
-            
+            tickIdle();
+
             // Re-render to update everything dynamically
             render();
         }
 
         window.startSpeaking = startSpeaking;
         window.markAsTalked = markAsTalked;
+
+        // Wire up the transfer button once — the form lives outside the render loop
+        document.getElementById('transferBtn').addEventListener('click', () => {
+            const amtInput = document.getElementById('transferAmount');
+            doTransfer(
+                document.getElementById('transferFromSel').value,
+                document.getElementById('transferToSel').value,
+                parseFloat(amtInput.value)
+            );
+            amtInput.value = '';
+        });
 
         // Initialize allocated times
         updateAllocatedTimes();

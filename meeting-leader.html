@@ -324,6 +324,30 @@
         const defaultNames = ['Agus', 'Mel', 'Lean', 'Dani', 'Vic', 'Mate', 'Mauge', 'Lu'];
         let names = [...defaultNames];
 
+        // Restore last configuration from localStorage (if any)
+        (function restoreMeetingConfig() {
+            try {
+                const saved = JSON.parse(localStorage.getItem('meetingData'));
+                if (!saved) return;
+                if (Array.isArray(saved.names) && saved.names.length > 0) {
+                    names = [...saved.names];
+                }
+                if (typeof saved.startTime === 'string') {
+                    document.getElementById('startTime').value = saved.startTime;
+                }
+                if (typeof saved.endTime === 'string') {
+                    document.getElementById('endTime').value = saved.endTime;
+                }
+                if (typeof saved.charlaMinutes === 'number') {
+                    const slider = document.getElementById('charlaSlider');
+                    slider.value = saved.charlaMinutes;
+                    document.getElementById('charlaValue').textContent = saved.charlaMinutes + ' min';
+                }
+            } catch (e) {
+                // Corrupted config — fall back to defaults silently
+            }
+        })();
+
         function getMeetingDuration() {
             const startTime = document.getElementById('startTime').value;
             const endTime = document.getElementById('endTime').value;
@@ -393,7 +417,10 @@
             nameList.innerHTML = '';
 
             if (names.length === 0) {
-                nameList.innerHTML = '<div class="empty-state">Todavía no hay participantes</div>';
+                const empty = document.createElement('div');
+                empty.className = 'empty-state';
+                empty.textContent = 'Todavía no hay participantes';
+                nameList.appendChild(empty);
                 updateTimeSummary();
                 return;
             }
@@ -406,11 +433,24 @@
             names.forEach((name, index) => {
                 const nameItem = document.createElement('div');
                 nameItem.className = 'name-item';
-                nameItem.innerHTML = `
-                    <span class="name-text">${name}</span>
-                    <span style="color: #667eea; font-weight: 600;">${formatMinutes(perPersonTime)}</span>
-                    <button class="btn-delete" onclick="removeName(${index})">Eliminar</button>
-                `;
+
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'name-text';
+                nameSpan.textContent = name;
+
+                const timeSpan = document.createElement('span');
+                timeSpan.style.color = '#667eea';
+                timeSpan.style.fontWeight = '600';
+                timeSpan.textContent = formatMinutes(perPersonTime);
+
+                const delBtn = document.createElement('button');
+                delBtn.className = 'btn-delete';
+                delBtn.textContent = 'Eliminar';
+                delBtn.addEventListener('click', () => removeName(index));
+
+                nameItem.appendChild(nameSpan);
+                nameItem.appendChild(timeSpan);
+                nameItem.appendChild(delBtn);
                 nameList.appendChild(nameItem);
             });
 
@@ -468,12 +508,12 @@
 
         document.getElementById('startTime').addEventListener('change', function() {
             updateSliderMax();
-            updateTimeSummary();
+            renderNames();
         });
 
         document.getElementById('endTime').addEventListener('change', function() {
             updateSliderMax();
-            updateTimeSummary();
+            renderNames();
         });
 
         document.getElementById('charlaSlider').addEventListener('input', function() {
