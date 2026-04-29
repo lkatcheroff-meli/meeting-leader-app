@@ -324,10 +324,10 @@
         const defaultNames = ['Agus', 'Mel', 'Lean', 'Dani', 'Vic', 'Mate', 'Mauge', 'Lu'];
         let names = [...defaultNames];
 
-        // Restore last configuration from localStorage (if any)
+        // Restore last configuration from sessionStorage (if any)
         (function restoreMeetingConfig() {
             try {
-                const saved = JSON.parse(localStorage.getItem('meetingData'));
+                const saved = JSON.parse(sessionStorage.getItem('meetingData'));
                 if (!saved) return;
                 if (Array.isArray(saved.names) && saved.names.length > 0) {
                     names = [...saved.names];
@@ -496,7 +496,7 @@
                 charlaMinutes: parseInt(document.getElementById('charlaSlider').value)
             };
 
-            localStorage.setItem('meetingData', JSON.stringify(meetingData));
+            sessionStorage.setItem('meetingData', JSON.stringify(meetingData));
             window.location.href = 'active-meeting.html';
         }
 

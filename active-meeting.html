@@ -375,7 +375,7 @@
     </div>
 
     <script>
-        let meetingData = JSON.parse(localStorage.getItem('meetingData'));
+        let meetingData = JSON.parse(sessionStorage.getItem('meetingData'));
         
         if (!meetingData) {
             alert('No se encontraron datos de la reunión. Por favor vuelve atrás para configurar la reunión.');
