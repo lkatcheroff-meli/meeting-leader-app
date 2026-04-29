@@ -373,6 +373,18 @@
             }
         }
 
+        // Persist the landing form to sessionStorage so a refresh keeps the in-progress setup.
+        function saveLandingState() {
+            try {
+                sessionStorage.setItem('meetingData', JSON.stringify({
+                    names,
+                    startTime: document.getElementById('startTime').value,
+                    endTime: document.getElementById('endTime').value,
+                    charlaMinutes: parseInt(document.getElementById('charlaSlider').value) || 0
+                }));
+            } catch (e) { /* storage disabled — ignore */ }
+        }
+
         function formatMinutes(minutes) {
             const mins = Math.floor(minutes);
             const seconds = Math.round((minutes - mins) * 60);
@@ -389,6 +401,9 @@
             if (participants > 0) {
                 perPersonTime = participantMinutes / participants;
             }
+
+            // Any change that touches the summary also touches the form — save it.
+            saveLandingState();
 
             const summary = document.getElementById('timeSummary');
             summary.innerHTML = `
@@ -497,6 +512,8 @@
             };
 
             sessionStorage.setItem('meetingData', JSON.stringify(meetingData));
+            // Clear any stale runtime state from a previous meeting in this session
+            sessionStorage.removeItem('meetingState');
             window.location.href = 'active-meeting.html';
         }
 

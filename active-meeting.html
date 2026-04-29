@@ -401,6 +401,51 @@
         // Used to absorb dead time into the remaining participants' budgets.
         let lastIdleTick = null;
 
+        // Persist runtime state so a page refresh doesn't blow away the meeting.
+        const STATE_KEY = 'meetingState';
+        let stateRestored = false;
+
+        function saveState() {
+            try {
+                sessionStorage.setItem(STATE_KEY, JSON.stringify({
+                    names,
+                    talkedParticipants,
+                    allocatedTimes,
+                    currentSpeaker,
+                    currentSpeakerStartTime,
+                    charlaTimeRemaining,
+                    speakerPaused,
+                    speakerPauseStart,
+                    speakerTotalPaused
+                }));
+            } catch (e) { /* storage full / disabled — ignore */ }
+        }
+
+        function restoreState() {
+            try {
+                const raw = sessionStorage.getItem(STATE_KEY);
+                if (!raw) return false;
+                const s = JSON.parse(raw);
+                if (!s || typeof s !== 'object') return false;
+                if (Array.isArray(s.names)) names = s.names;
+                if (Array.isArray(s.talkedParticipants)) talkedParticipants = s.talkedParticipants;
+                if (s.allocatedTimes && typeof s.allocatedTimes === 'object') allocatedTimes = s.allocatedTimes;
+                currentSpeaker = typeof s.currentSpeaker === 'string' ? s.currentSpeaker : null;
+                currentSpeakerStartTime = typeof s.currentSpeakerStartTime === 'number' ? s.currentSpeakerStartTime : null;
+                if (typeof s.charlaTimeRemaining === 'number') charlaTimeRemaining = s.charlaTimeRemaining;
+                speakerPaused = !!s.speakerPaused;
+                speakerPauseStart = typeof s.speakerPauseStart === 'number' ? s.speakerPauseStart : null;
+                speakerTotalPaused = typeof s.speakerTotalPaused === 'number' ? s.speakerTotalPaused : 0;
+                // Don't restore lastIdleTick — start fresh so we don't deduct a huge gap
+                lastIdleTick = null;
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        stateRestored = restoreState();
+
         function tickIdle() {
             const { hasStarted } = calculateMeetingDates();
             if (!hasStarted || currentSpeaker || names.length === 0) {
@@ -853,6 +898,9 @@
 
             // Re-render to update everything dynamically
             render();
+
+            // Persist the latest state in case the page reloads
+            saveState();
         }
 
         window.startSpeaking = startSpeaking;
@@ -869,8 +917,10 @@
             amtInput.value = '';
         });
 
-        // Initialize allocated times
-        updateAllocatedTimes();
+        // Initialize allocated times only if we didn't just restore prior state
+        if (!stateRestored) {
+            updateAllocatedTimes();
+        }
 
         // Update every second
         setInterval(updateDisplays, 1000);
